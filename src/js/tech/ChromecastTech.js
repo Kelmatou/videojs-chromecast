@@ -156,6 +156,7 @@ ChromecastTech = {
           mediaInfo = new chrome.cast.media.MediaInfo(source.src, source.type),
           title = this._requestTitle(source),
           subtitle = this._requestSubtitle(source),
+          poster = this.poster(),
           customData = this._requestCustomData(source),
           request;
 
@@ -169,6 +170,10 @@ ChromecastTech = {
       mediaInfo.streamType = this.videojsPlayer.liveTracker && this.videojsPlayer.liveTracker.isLive()
          ? chrome.cast.media.StreamType.LIVE
          : chrome.cast.media.StreamType.BUFFERED;
+
+      if (poster) {
+         mediaInfo.metadata.images = [ { url: poster } ];
+      }
 
       if (customData) {
          mediaInfo.customData = customData;
