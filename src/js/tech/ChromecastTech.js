@@ -195,6 +195,10 @@ ChromecastTech = {
                // Tech has been initialized and is ready.
                this.triggerReady();
             }
+
+            // media is loaded on the receiver, set active caption track
+            this.onTextTrackChange();
+
             this.trigger('loadstart');
             this.trigger('loadeddata');
             this.trigger('play');
@@ -203,6 +207,146 @@ ChromecastTech = {
             this._isMediaLoading = false;
             this._getMediaSession().addUpdateListener(this._onMediaSessionStatusChanged.bind(this));
          }.bind(this), this._triggerErrorEvent.bind(this));
+
+      this.videojsPlayer.remoteTextTracks().on('change', this.onTextTrackChange.bind(this));
+   },
+
+   /**
+    * Get the current videojs language code ('en', 'fr'...)
+    * @returns the current videojs text track language or undefined if caption is off
+    */
+   getCurrentTextTrackLanguage: function() {
+      var textTracks = this.videojsPlayer.remoteTextTracks();
+
+      var i = 0;
+      for (i = 0; i < textTracks.length; i++) {
+         var textTrack = textTracks[i];
+
+         if (textTrack.mode === 'showing') {
+            return textTrack.language;
+         }
+      }
+
+      return undefined;
+   },
+
+   /**
+    * Called when videojs changes the caption language
+    * It will update chromecast current text track
+    */
+   onTextTrackChange: function() {
+      var currentLanguage = this.getCurrentTextTrackLanguage();
+      this.setRemoteActiveTextTrackByLanguage(currentLanguage);
+   },
+
+   /**
+    * Retrieve all the text tracks from the Receiver App
+    * @returns An array of Track of type Text
+    * @see {@link https://developers.google.com/cast/docs/reference/web_sender/chrome.cast.media.Track}
+    */
+   getRemoteTextTracks: function() {
+      var mediaSession = this._getMediaSession();
+
+      if (mediaSession == undefined) {
+         return [];
+      }
+
+      var remoteMedia = mediaSession.media;
+      var remoteTracks = remoteMedia.tracks;
+      var remoteTextTracks = [];
+
+      var i = 0;
+      for (i = 0; i < remoteTracks.length; i++) {
+         var remoteTrack = remoteTracks[i];
+
+         if (remoteTrack.type === chrome.cast.media.TrackType.TEXT) {
+            remoteTextTracks.push(remoteTrack);
+         }
+      }
+
+      return remoteTextTracks;
+   },
+
+   /**
+    * Get the active text Track on the Receiver App
+    * @returns The active text Track or undefined
+    * @see {@link https://developers.google.com/cast/docs/reference/web_sender/chrome.cast.media.Track}
+    */
+   getRemoteActiveTextTrack: function() {
+      var mediaSession = this._getMediaSession();
+
+      if (mediaSession == undefined) {
+         return undefined;
+      }
+
+      var remoteActiveTrackIds = mediaSession.activeTrackIds;
+
+      if (remoteActiveTrackIds.length === 0) {
+         return undefined;
+      }
+
+      var remoteTextTracks = this.getRemoteTextTracks();
+
+      var i = 0;
+      for (i = 0; i < remoteTextTracks.length; i++) {
+         var remoteTextTrack = remoteTextTracks[i];
+
+         var j = 0;
+         for (j = 0; j < remoteActiveTrackIds.length; j++) {
+            var remoteActiveTrackId = remoteActiveTrackIds[j];
+
+            if (remoteTextTrack.trackId === remoteActiveTrackId) {
+               return remoteTextTrack;
+            }
+         }
+      }
+
+      return undefined;
+   },
+
+   /**
+    * Update the active text track id
+    * @param {number} trackId the track id to set active. can be undefined to disable captions
+    */
+    setRemoteActiveTextTrackByLanguage: function(language) {
+      if (language == undefined) {
+         this.setRemoteActiveTextTrackById(undefined);
+         return;
+      }
+
+      var remoteTextTracks = this.getRemoteTextTracks();
+
+      var i = 0;
+      for (i = 0; i < remoteTextTracks.length; i++) {
+         var remoteTextTrack = remoteTextTracks[i];
+
+         if (remoteTextTrack.language === language) {
+            this.setRemoteActiveTextTrackById(remoteTextTrack.trackId);
+            return;
+         }
+      }
+   },
+
+   /**
+    * Update the active text track id
+    * @param {number} trackId the track id to set active. can be undefined to disable captions
+    */
+   setRemoteActiveTextTrackById: function(trackId) {
+      var newActiveId = [];
+
+      if (trackId != undefined) {
+         newActiveId.push(trackId);
+      }
+
+      var editRequest = new chrome.cast.media.EditTracksInfoRequest(newActiveId);
+
+      var mediaSession = this._getMediaSession();
+
+      if (mediaSession == undefined) {
+         return;
+      }
+
+      mediaSession.editTracksInfo(editRequest);
    },
 
    /**
