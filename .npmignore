@@ -1,7 +1,6 @@
 .eslintrc.json
 .travis.yml
 .npmignore
-Gruntfile.js
 tests/**
 .nyc_output
 coverage
